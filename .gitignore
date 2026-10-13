@@ -1,0 +1,28 @@
+# Dependencies
+**/node_modules/
+
+# Environment files
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build output
+**/dist/
+**/build/
+**/coverage/
+
+# AI coding assistants
+**/.agents/
+**/.claude/
+**/.windsurf/
+
+# Generated Prisma client
+apps/api/generated/prisma/
+
+# Logs
+*.log
+*.tsbuildinfo
+
+# Operating system
+.DS_Store
+Thumbs.db
