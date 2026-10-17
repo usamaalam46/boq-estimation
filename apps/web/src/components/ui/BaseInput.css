@@ -1,0 +1,123 @@
+
+.base-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.base-input-label {
+  color: #434b5d;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.base-input-required {
+  color: #d14343;
+}
+
+.base-input-control {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dfe3ec;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.base-input-control:focus-within {
+  border-color: #6578e8;
+  box-shadow: 0 0 0 3px rgba(83, 104, 219, 0.12);
+}
+
+.base-input-control.has-error {
+  border-color: #d14343;
+}
+
+.base-input-control.has-error:focus-within {
+  box-shadow: 0 0 0 3px rgba(209, 67, 67, 0.12);
+}
+
+.base-input-control.is-disabled {
+  background: #f2f4f7;
+  cursor: not-allowed;
+}
+
+.base-input-field {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #30394b;
+  font: inherit;
+  font-size: 13px;
+}
+
+.base-input-field::placeholder {
+  color: #a5acba;
+}
+
+.base-input-field:disabled {
+  cursor: not-allowed;
+  color: #81899a;
+}
+
+.base-input-sm {
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.base-input-md {
+  min-height: 48px;
+  padding: 0 14px;
+}
+
+.base-input-lg {
+  min-height: 54px;
+  padding: 0 16px;
+}
+
+.base-input-element {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: #81899a;
+}
+
+.base-input-left {
+  padding-left: 12px;
+}
+
+.base-input-right {
+  padding-right: 12px;
+}
+
+.base-input-hint,
+.base-input-error {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.base-input-hint {
+  color: #81899a;
+}
+
+.base-input-error {
+  color: #a32c2c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .base-input-control {
+    transition: none;
+  }
+}

@@ -1,0 +1,29 @@
+
+:root {
+  /* Brand */
+  --color-primary: #20365B;
+  --color-primary-hover: #172945;
+  --color-primary-light: #E9EEF5;
+
+  /* Surfaces and text */
+  --color-white: #FFFFFF;
+  --color-page: #F5F7FA;
+  --color-text: #203047;
+  --color-text-muted: #6B778C;
+  --color-border: #E1E6ED;
+
+  /* Components */
+  --color-focus: rgba(32, 54, 91, 0.18);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-card: 0 4px 18px rgba(32, 54, 91, 0.06);
+
+  /* Typography */
+  --font-family: Inter, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+
+  /* Layout */
+  --sidebar-width: 258px;
+  --header-height: 70px;
+}

@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -10,4 +5,351 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum RoleScope {
+  platform
+  organization
+}
+
+enum EstimateStatus {
+  draft
+  in_review
+  approved
+  archived
+}
+
+enum CatalogueScope {
+  platform
+  organization
+}
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  address   String
+  location  String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members        OrganizationMember[]
+  roles          Role[]
+  projects       Project[]
+  catalogueItems CatalogueItem[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  memberships      OrganizationMember[]
+  platformRoles    UserPlatformRole[]
+  createdEstimates Estimate[]
+
+  @@map("users")
+}
+
+model OrganizationMember {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid @map("organization_id")
+  userId         String           @db.Uuid @map("user_id")
+  roleId         String   @db.Uuid @map("role_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("organization_members")
+}
+
+
+model Role {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String
+  code           String
+  description    String?
+  scope          RoleScope
+  organizationId String?   @db.Uuid @map("organization_id")
+  isSystem        Boolean   @default(false) @map("is_system")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  members         OrganizationMember[]
+  platformUsers   UserPlatformRole[]
+
+  @@unique([organizationId, code])
+  @@index([scope])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String    @id @default(uuid()) @db.Uuid
+  code        String    @unique
+  name        String
+  description String?
+  scope       RoleScope
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+
+  @@index([scope])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @db.Uuid @map("role_id")
+  permissionId String   @db.Uuid @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// Platform-level assignments (for example, Super Admin).
+// Organization-level assignments are stored in OrganizationMember.
+model UserPlatformRole {
+  userId    String   @db.Uuid @map("user_id")
+  roleId    String   @db.Uuid @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_platform_roles")
+}
+
+model Project {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid @map("organization_id")
+  name           String
+  code           String?
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  estimates    Estimate[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("projects")
+}
+
+model Discipline {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  categories     Category[]
+  catalogueItems CatalogueItem[]
+
+  @@map("disciplines")
+}
+
+model Unit {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  symbol      String   @unique
+  description String?
+  dimension   String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  catalogueItems CatalogueItem[]
+  estimateItems  EstimateItem[]
+
+  @@map("units")
+}
+
+model Category {
+  id           String   @id @default(uuid()) @db.Uuid
+  disciplineId String   @db.Uuid @map("discipline_id")
+  parentId     String?  @db.Uuid @map("parent_id")
+  name         String
+  code         String?
+  description  String?
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  discipline Discipline @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children   Category[] @relation("CategoryHierarchy")
+
+  catalogueItems CatalogueItem[]
+
+  @@unique([disciplineId, parentId, name])
+  @@index([disciplineId])
+  @@index([parentId])
+  @@map("categories")
+}
+
+model CatalogueItem {
+  id                    String         @id @default(uuid()) @db.Uuid
+  scope                 CatalogueScope @default(platform)
+  organizationId        String?        @db.Uuid @map("organization_id")
+  disciplineId          String         @db.Uuid @map("discipline_id")
+  categoryId            String         @db.Uuid @map("category_id")
+  unitId                String         @db.Uuid @map("unit_id")
+  code                  String?
+  name                  String
+  description           String?
+  specification         Json?
+  defaultWastagePercent Decimal?       @db.Decimal(7, 4) @map("default_wastage_percent")
+  isActive              Boolean        @default(true) @map("is_active")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  discipline   Discipline    @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  unit         Unit          @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  estimateItems EstimateItem[]
+
+  @@index([organizationId])
+  @@index([disciplineId, categoryId])
+  @@index([name])
+  @@map("catalogue_items")
+}
+
+model Estimate {
+  id                 String         @id @default(uuid()) @db.Uuid
+  projectId          String         @db.Uuid @map("project_id")
+  createdById        String         @db.Uuid @map("created_by_id")
+  name               String
+  reference          String?
+  description        String?
+  status             EstimateStatus @default(draft)
+  currency           String         @default("PKR")
+  version            Int            @default(1)
+  subtotal           Decimal        @default(0) @db.Decimal(18, 2)
+  wastageTotal       Decimal        @default(0) @map("wastage_total") @db.Decimal(18, 2)
+  contingencyPercent Decimal        @default(0) @map("contingency_percent") @db.Decimal(7, 4)
+  contingencyAmount  Decimal        @default(0) @map("contingency_amount") @db.Decimal(18, 2)
+  taxPercent         Decimal        @default(0) @map("tax_percent") @db.Decimal(7, 4)
+  taxAmount          Decimal        @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  grandTotal         Decimal        @default(0) @map("grand_total") @db.Decimal(18, 2)
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdBy User    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  sections  EstimateSection[]
+
+  @@index([projectId, status])
+  @@index([createdById])
+  @@map("estimates")
+}
+
+model EstimateSection {
+  id          String   @id @default(uuid()) @db.Uuid
+  estimateId  String   @db.Uuid @map("estimate_id")
+  name        String
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  estimate Estimate       @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  items    EstimateItem[]
+
+  @@index([estimateId, sortOrder])
+  @@map("estimate_sections")
+}
+
+model EstimateItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  sectionId       String   @db.Uuid @map("section_id")
+  catalogueItemId String?  @db.Uuid @map("catalogue_item_id")
+  unitId          String   @db.Uuid @map("unit_id")
+
+  // Snapshot fields preserve the estimate when the catalogue changes.
+  itemCode      String? @map("item_code")
+  description   String
+  specification Json?
+  unitSymbol    String  @map("unit_symbol")
+
+  quantity       Decimal @default(0) @db.Decimal(18, 4)
+  rate           Decimal @default(0) @db.Decimal(18, 4)
+  wastagePercent Decimal @default(0) @map("wastage_percent") @db.Decimal(7, 4)
+  amount         Decimal @default(0) @db.Decimal(18, 2)
+  remarks        String?
+  sortOrder      Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  section       EstimateSection   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  catalogueItem CatalogueItem?    @relation(fields: [catalogueItemId], references: [id], onDelete: SetNull)
+  unit          Unit              @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  measurements  MeasurementInput[]
+
+  @@index([sectionId, sortOrder])
+  @@index([catalogueItemId])
+  @@map("estimate_items")
+}
+
+model FormulaTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  formula     String
+  inputSchema Json     @map("input_schema")
+  version     Int      @default(1)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  measurements MeasurementInput[]
+
+  @@map("formula_templates")
+}
+
+model MeasurementInput {
+  id                 String   @id @default(uuid()) @db.Uuid
+  estimateItemId     String   @db.Uuid @map("estimate_item_id")
+  formulaTemplateId  String   @db.Uuid @map("formula_template_id")
+  formulaVersion     Int      @map("formula_version")
+  inputs             Json
+  calculatedQuantity Decimal  @db.Decimal(18, 4) @map("calculated_quantity")
+  calculationDetails Json?    @map("calculation_details")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  estimateItem EstimateItem    @relation(fields: [estimateItemId], references: [id], onDelete: Cascade)
+  formula      FormulaTemplate @relation(fields: [formulaTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([estimateItemId])
+  @@index([formulaTemplateId])
+  @@map("measurement_inputs")
 }
