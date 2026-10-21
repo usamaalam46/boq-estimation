@@ -8,6 +8,7 @@ import CatalogueItemRoutes  from "./catalogue-item.routes.js"
 import OrganizationRoutes  from "../routes/organization.routes.js";
 import ProjectRoutes from "../routes/project.routes.js"
 import EstimateRoutes from "../routes/estimate.routes.js";
+import RolePremissionRoues from "../routes/role-management.routes.js"
 const router = Router();
 
 // Authentication endpoints
@@ -20,6 +21,7 @@ router.use("/catalogue",CatalogueItemRoutes)
 router.use("/organization", OrganizationRoutes);
 router.use("/estimates", EstimateRoutes);
 router.use("/projects", ProjectRoutes);
+router.use("/roles-premission", RolePremissionRoues);
 // router.use("/users", userRoutes);
 
 export default router;

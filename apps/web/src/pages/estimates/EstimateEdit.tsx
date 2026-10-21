@@ -5,6 +5,7 @@ import api from "../../api/axios";
 import "./EstimateBuilder.css";
 import "./Addons.css";
 import "./EstimateEdit.css";
+import "./Estimates-edit-button.css"
 
 type BoqItem = {
   id: string;
@@ -16,6 +17,7 @@ type BoqItem = {
   wastagePercent: number;
   unitId?: number;
   catalogueItemId?: number | null;
+  catalogueName?: string | null;
   remarks?: string | null;
 };
 
@@ -23,6 +25,18 @@ type BoqSection = {
   id: string;
   name: string;
   items: BoqItem[];
+};
+
+type CatalogueItem = {
+  id: number;
+  code: string | null;
+  name: string;
+  description: string | null;
+  specification: unknown;
+  defaultWastagePercent: number | string | null;
+  unitId: number;
+  unit: { id: number; name: string; symbol: string };
+  category: { id: number; name: string; discipline?: { name: string } };
 };
 
 type EstimateStatus = "draft" | "in_review" | "approved" | "archived";
@@ -79,6 +93,13 @@ export default function EstimateEdit() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [catalogueSearch, setCatalogueSearch] = useState("");
+  const [catalogueItems, setCatalogueItems] = useState<CatalogueItem[]>([]);
+  const [selectedCatalogueIds, setSelectedCatalogueIds] = useState<number[]>([]);
+  const [loadingCatalogue, setLoadingCatalogue] = useState(false);
+  const [catalogueError, setCatalogueError] = useState("");
+  const [targetSectionId, setTargetSectionId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +168,7 @@ export default function EstimateEdit() {
             unitId: item.unitId ?? item.unit?.id,
             catalogueItemId: item.catalogueItemId ?? null,
             remarks: item.remarks ?? null,
+            catalogueName: item.catalogueItem?.name ?? null,
           })),
         })));
       } catch (err: unknown) {
@@ -165,6 +187,66 @@ export default function EstimateEdit() {
     void loadEstimate();
     return () => { cancelled = true; };
   }, [estimateId, isEditMode]);
+
+  useEffect(() => {
+    if (!catalogueOpen) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        setLoadingCatalogue(true);
+        setCatalogueError("");
+        const response = await api.get("/catalogue", {
+          params: { page: 1, limit: 100, search: catalogueSearch.trim() },
+        });
+        const result = response.data;
+        const raw = Array.isArray(result?.data) ? result.data
+          : Array.isArray(result?.data?.items) ? result.data.items
+          : Array.isArray(result?.items) ? result.items
+          : Array.isArray(result) ? result : null;
+        if (!raw) throw new Error("Unexpected catalogue response format.");
+        if (!cancelled) setCatalogueItems(raw);
+      } catch (err: unknown) {
+        const message = typeof err === "object" && err !== null && "response" in err
+          ? String((err as { response?: { data?: { message?: string } } }).response?.data?.message || "")
+          : "";
+        if (!cancelled) {
+          setCatalogueItems([]);
+          setCatalogueError(message || "Unable to load catalogue items. Check the catalogue API and your access.");
+        }
+      } finally {
+        if (!cancelled) setLoadingCatalogue(false);
+      }
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [catalogueOpen, catalogueSearch]);
+
+  function openCatalogue(sectionId: string) {
+    setTargetSectionId(sectionId);
+    setSelectedCatalogueIds([]);
+    setCatalogueSearch("");
+    setCatalogueOpen(true);
+  }
+
+  function addSelectedCatalogueItems() {
+    const selected = catalogueItems.filter((item) => selectedCatalogueIds.includes(item.id));
+    if (!selected.length || !targetSectionId) return;
+    setSections((current) => current.map((section) => {
+      if (section.id !== targetSectionId) return section;
+      const additions: BoqItem[] = selected.map((item) => ({
+        id: crypto.randomUUID(),
+        catalogueItemId: item.id,
+        unitId: item.unitId ?? item.unit?.id,
+        code: item.code ?? "",
+        description: item.description?.trim() || item.name,
+        unit: item.unit?.symbol || "pcs",
+        quantity: 1,
+        rate: 0,
+        wastagePercent: Number(item.defaultWastagePercent ?? 0),
+      }));
+      return { ...section, items: [...section.items, ...additions] };
+    }));
+    setCatalogueOpen(false);
+  }
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -327,10 +409,7 @@ export default function EstimateEdit() {
             quantity: item.quantity,
             rate: item.rate,
             wastagePercent: item.wastagePercent,
-            amount:
-              item.quantity *
-              item.rate *
-              (1 + item.wastagePercent / 100),
+            // Amounts are calculated by the backend from quantity, rate and wastage.
             sortOrder: itemIndex,
           })),
         })),
@@ -595,6 +674,11 @@ export default function EstimateEdit() {
                               aria-label={`Item ${itemIndex + 1} description`}
                               required
                             />
+                            {item.catalogueItemId && (
+                              <small className="eb-linked-catalogue">
+                                Catalogue item linked{item.catalogueName ? `: ${item.catalogueName}` : ` #${item.catalogueItemId}`}
+                              </small>
+                            )}
                           </td>
                           <td>
                             <input
@@ -685,13 +769,22 @@ export default function EstimateEdit() {
                 </table>
               </div>
 
-              <button
-                type="button"
-                className="eb-add-row"
-                onClick={() => addItem(section.id)}
-              >
-                + Add BOQ item
-              </button>
+              <div className="eb-item-toolbar">
+                <button
+                  type="button"
+                  className="eb-button eb-button-secondary"
+                  onClick={() => openCatalogue(section.id)}
+                >
+                  + Select from Catalogue
+                </button>
+                <button
+                  type="button"
+                  className="eb-add-row"
+                  onClick={() => addItem(section.id)}
+                >
+                  + Add manual item
+                </button>
+              </div>
             </div>
           );
         })}
@@ -764,6 +857,66 @@ export default function EstimateEdit() {
           </div>
         </section>
       </div>
+
+      {catalogueOpen && (
+        <div className="eb-catalogue-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCatalogueOpen(false);
+        }}>
+          <section className="eb-catalogue-dialog" role="dialog" aria-modal="true" aria-labelledby="eb-catalogue-title">
+            <div className="eb-catalogue-dialog-header">
+              <div>
+                <h2 id="eb-catalogue-title">Select catalogue items</h2>
+                <p>Choose existing items to add them to this estimate section.</p>
+              </div>
+              <button type="button" className="eb-text-button" onClick={() => setCatalogueOpen(false)}>Close ×</button>
+            </div>
+            <input
+              className="eb-catalogue-search"
+              value={catalogueSearch}
+              onChange={(event) => setCatalogueSearch(event.target.value)}
+              placeholder="Search by item name or code..."
+              autoFocus
+            />
+            {catalogueError && <div className="eb-alert eb-alert-error">{catalogueError}</div>}
+            {loadingCatalogue ? <p className="eb-catalogue-status">Loading catalogue...</p> :
+              catalogueItems.length === 0 ? <p className="eb-catalogue-status">No catalogue items found. Check that active catalogue items exist.</p> : (
+              <div className="eb-catalogue-results">
+                <table className="eb-table">
+                  <thead><tr><th></th><th>Code</th><th>Item</th><th>Category</th><th>Unit</th><th>Wastage</th></tr></thead>
+                  <tbody>
+                    {catalogueItems.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${item.name}`}
+                            checked={selectedCatalogueIds.includes(item.id)}
+                            onChange={(event) => setSelectedCatalogueIds((ids) =>
+                              event.target.checked ? [...ids, item.id] : ids.filter((id) => id !== item.id)
+                            )}
+                          />
+                        </td>
+                        <td>{item.code || "—"}</td>
+                        <td><strong>{item.name}</strong>{item.description && <small className="eb-catalogue-description">{item.description}</small>}</td>
+                        <td>{item.category?.name || "—"}</td>
+                        <td>{item.unit?.symbol || "—"}</td>
+                        <td>{Number(item.defaultWastagePercent ?? 0)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="eb-catalogue-dialog-footer">
+              <span>{selectedCatalogueIds.length} item(s) selected</span>
+              <div>
+                <button type="button" className="eb-button eb-button-secondary" onClick={() => setCatalogueOpen(false)}>Cancel</button>
+                <button type="button" className="eb-button eb-button-primary" disabled={!selectedCatalogueIds.length} onClick={addSelectedCatalogueItems}>Add selected items</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       <footer className="eb-footer">
         <span>Changes are not saved until you save the draft.</span>

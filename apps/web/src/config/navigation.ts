@@ -7,7 +7,6 @@ import {
   FolderKanban,
   Calculator,
   ClipboardList,
-  BookOpen,
   Layers3,
   FolderTree,
   Ruler,
@@ -76,6 +75,8 @@ export const platformNavigation: NavigationItem[] = [
     icon: ClipboardList,
     requiredPermissions: ["estimates.create"],
   },
+
+  // Platform catalogue: Super Admin only
   {
     label: "Disciplines",
     path: "/disciplines",
@@ -103,6 +104,17 @@ export const platformNavigation: NavigationItem[] = [
     icon: PackageSearch,
     requiredPermissions: ["platform.catalogue.manage"],
     platformOnly: true,
+  },
+
+  // Organization catalogue: users with either permission
+  {
+    label: "Catalogue",
+    path: "/global-boq-catalogue",
+    icon: PackageSearch,
+    requiredPermissions: [
+      "catalogue.view",
+      "catalogue.manage",
+    ],
   },
   {
     label: "My Profile",

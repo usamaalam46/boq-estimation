@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import Login from "../pages/auth/Login";
@@ -12,18 +13,32 @@ import Categories from "../pages/categories/Categories";
 import Units from "../pages/units/Units";
 import CatalogueItems from "../pages/catalogue-items/CatalogueItems";
 import EstimateEdit from "../pages/estimates/EstimateEdit";
+import RolesPermissions from "../pages/roles-permissions/RolesPermissions";
+import Profile from "../pages/profile/Profile";
+import { useAuthStore } from "../store/authStore";
 
 const TOKEN_KEY = "boq_access_token";
 
-function isAuthenticated() {
-  return Boolean(localStorage.getItem(TOKEN_KEY));
+function AuthInitializer() {
+  const loadUser = useAuthStore((state) => state.loadUser);
+
+  useEffect(() => {
+    void loadUser();
+  }, [loadUser]);
+
+  return null;
 }
 
 function ProtectedRoute() {
-  const token = localStorage.getItem("boq_access_token");
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
 
-  if (!token) {
-    alert("now")
+  if (isLoading || !isInitialized) {
+    return <div className="app-loading">Loading...</div>;
+  }
+
+  if (!isAuthenticated || !localStorage.getItem(TOKEN_KEY)) {
     return <Navigate to="/login" replace />;
   }
 
@@ -31,21 +46,53 @@ function ProtectedRoute() {
 }
 
 function GuestRoute() {
-  return isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Outlet />;
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
+
+  if (isLoading || !isInitialized) {
+    return <div className="app-loading">Loading...</div>;
+  }
+
+  return isAuthenticated
+    ? <Navigate to="/dashboard" replace />
+    : <Outlet />;
+}
+
+function RolesPermissionsRoute() {
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
+  const canManageAnyOrganization = useAuthStore((state) => {
+    const user = state.user;
+    if (!user) return false;
+
+    return user.memberships.some((membership) =>
+      membership.role.permissions.includes("organization.roles.manage")
+    );
+  });
+
+  if (!isSuperAdmin && !canManageAnyOrganization) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return <RolesPermissions />;
+}
+
+function Unauthorized() {
+  return (
+    <section className="unauthorized-page">
+      <h1>Access denied</h1>
+      <p>You do not have permission to access this page.</p>
+      <a href="/dashboard">Return to dashboard</a>
+    </section>
+  );
 }
 
 export default function AppRoutes() {
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to={isAuthenticated() ? "/dashboard" : "/login"}
-            replace
-          />
-        }
-      />
+    <>
+      <AuthInitializer />
+      <Routes>
+      <Route path="/" element={<Navigate to={localStorage.getItem(TOKEN_KEY) ? "/dashboard" : "/login"} replace />} />
 
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<Login />} />
@@ -61,13 +108,16 @@ export default function AppRoutes() {
           <Route path="/estimates/:estimateId/edit" element={<EstimateEdit />} />
           <Route path="/disciplines" element={<Disciplines />} />
           <Route path="/categories" element={<Categories />} />
+          <Route path="/roles-permissions" element={<RolesPermissionsRoute />} />
           <Route path="/units" element={<Units />} />
           <Route path="/global-boq-catalogue" element={<CatalogueItems />} />
-          {/* <Route path="/settings" element={<EstimateBuilder />} /> */}
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/unauthorized" element={<Unauthorized />} />
         </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

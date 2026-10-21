@@ -1,5 +1,8 @@
 import type { PrismaClient } from "../../generated/prisma/client.js";
-import { calculateEstimate, calculateItem } from "./estimates.calculation.js";
+import {
+  calculateEstimate,
+  calculateItem,
+} from "../controllers/estimate.calculation.js";
 import type { CreateEstimateInput } from "../validators/estimate.validatior.js";
 
 const httpError = (message: string, status: number) =>
@@ -8,9 +11,7 @@ const asDecimal = (value: number) => value.toFixed(4);
 const asMoney = (value: number) => value.toFixed(2);
 
 export class EstimatesService {
-  constructor(private readonly prisma: PrismaClient) {
-
-  }
+  constructor(private readonly prisma: PrismaClient) { }
 
   private async assertProjectAccess(userId: number, projectId: number) {
     const project = await this.prisma.project.findUnique({
@@ -208,6 +209,18 @@ export class EstimatesService {
               orderBy: { sortOrder: "asc" },
               include: {
                 unit: { select: { id: true, name: true, symbol: true } },
+                catalogueItem: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    description: true,
+                    specification: true,
+                    defaultWastagePercent: true,
+                    unit: { select: { id: true, name: true, symbol: true } },
+                    category: { select: { id: true, name: true } },
+                  },
+                },
               },
             },
           },
@@ -395,6 +408,28 @@ export class EstimatesService {
           throw httpError(`Unit '${item.unitSymbol}' was not found.`, 422);
         item.unitId = unitId;
       }
+      if (item.catalogueItemId) {
+        const project = await this.prisma.project.findUniqueOrThrow({
+          where: { id: input.projectId },
+          select: { organizationId: true },
+        });
+        const catalogueItem = await this.prisma.catalogueItem.findFirst({
+          where: {
+            id: item.catalogueItemId,
+            isActive: true,
+            OR: [
+              { scope: "platform", organizationId: null },
+              { scope: "organization", organizationId: project.organizationId },
+            ],
+          },
+          select: { id: true },
+        });
+        if (!catalogueItem)
+          throw httpError(
+            `Catalogue item ${item.catalogueItemId} is not available to this organization.`,
+            422
+          );
+      }
     }
 
     const totals = calculateEstimate(
@@ -403,6 +438,8 @@ export class EstimatesService {
       input.taxPercent ?? 0
     );
     return this.prisma.$transaction(async (tx) => {
+      // Replace the estimate's existing section/item tree exactly once per save.
+      // This avoids appending the submitted items to the existing rows.
       await tx.estimateSection.deleteMany({ where: { estimateId: id } });
       return tx.estimate.update({
         where: { id },
