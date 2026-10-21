@@ -25,7 +25,7 @@ enum CatalogueScope {
 }
 
 model Organization {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        Int      @id @default(autoincrement())
   name      String
   slug      String   @unique
   address   String
@@ -43,13 +43,13 @@ model Organization {
 }
 
 model User {
-  id           String       @id @default(uuid()) @db.Uuid
+  id           Int      @id @default(autoincrement())
   name         String
-  email        String       @unique
-  passwordHash String       @map("password_hash")
-  isActive     Boolean      @default(true) @map("is_active")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   memberships      OrganizationMember[]
   platformRoles    UserPlatformRole[]
@@ -59,10 +59,10 @@ model User {
 }
 
 model OrganizationMember {
-  id             String           @id @default(uuid()) @db.Uuid
-  organizationId String           @db.Uuid @map("organization_id")
-  userId         String           @db.Uuid @map("user_id")
-  roleId         String   @db.Uuid @map("role_id")
+  id             Int      @id @default(autoincrement())
+  organizationId Int      @map("organization_id")
+  userId         Int      @map("user_id")
+  roleId         Int      @map("role_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -75,20 +75,19 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
-
 model Role {
-  id             String    @id @default(uuid()) @db.Uuid
+  id             Int       @id @default(autoincrement())
   name           String
   code           String
   description    String?
   scope          RoleScope
-  organizationId String?   @db.Uuid @map("organization_id")
-  isSystem        Boolean   @default(false) @map("is_system")
-  isActive        Boolean   @default(true) @map("is_active")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  organizationId Int?      @map("organization_id")
+  isSystem       Boolean   @default(false) @map("is_system")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rolePermissions RolePermission[]
   members         OrganizationMember[]
   platformUsers   UserPlatformRole[]
@@ -100,7 +99,7 @@ model Role {
 }
 
 model Permission {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          Int       @id @default(autoincrement())
   code        String    @unique
   name        String
   description String?
@@ -114,8 +113,8 @@ model Permission {
 }
 
 model RolePermission {
-  roleId       String   @db.Uuid @map("role_id")
-  permissionId String   @db.Uuid @map("permission_id")
+  roleId       Int      @map("role_id")
+  permissionId Int      @map("permission_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
   role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
@@ -126,11 +125,9 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-// Platform-level assignments (for example, Super Admin).
-// Organization-level assignments are stored in OrganizationMember.
 model UserPlatformRole {
-  userId    String   @db.Uuid @map("user_id")
-  roleId    String   @db.Uuid @map("role_id")
+  userId    Int      @map("user_id")
+  roleId    Int      @map("role_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -142,8 +139,8 @@ model UserPlatformRole {
 }
 
 model Project {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @db.Uuid @map("organization_id")
+  id             Int      @id @default(autoincrement())
+  organizationId Int      @map("organization_id")
   name           String
   code           String?
   description    String?
@@ -159,7 +156,7 @@ model Project {
 }
 
 model Discipline {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          Int      @id @default(autoincrement())
   name        String   @unique
   code        String   @unique
   description String?
@@ -174,7 +171,7 @@ model Discipline {
 }
 
 model Unit {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          Int      @id @default(autoincrement())
   name        String
   symbol      String   @unique
   description String?
@@ -189,9 +186,9 @@ model Unit {
 }
 
 model Category {
-  id           String   @id @default(uuid()) @db.Uuid
-  disciplineId String   @db.Uuid @map("discipline_id")
-  parentId     String?  @db.Uuid @map("parent_id")
+  id           Int      @id @default(autoincrement())
+  disciplineId Int      @map("discipline_id")
+  parentId     Int?     @map("parent_id")
   name         String
   code         String?
   description  String?
@@ -213,17 +210,17 @@ model Category {
 }
 
 model CatalogueItem {
-  id                    String         @id @default(uuid()) @db.Uuid
+  id                    Int            @id @default(autoincrement())
   scope                 CatalogueScope @default(platform)
-  organizationId        String?        @db.Uuid @map("organization_id")
-  disciplineId          String         @db.Uuid @map("discipline_id")
-  categoryId            String         @db.Uuid @map("category_id")
-  unitId                String         @db.Uuid @map("unit_id")
+  organizationId        Int?           @map("organization_id")
+  disciplineId          Int            @map("discipline_id")
+  categoryId            Int            @map("category_id")
+  unitId                Int            @map("unit_id")
   code                  String?
   name                  String
   description           String?
   specification         Json?
-  defaultWastagePercent Decimal?       @db.Decimal(7, 4) @map("default_wastage_percent")
+  defaultWastagePercent Decimal?       @map("default_wastage_percent") @db.Decimal(7, 4)
   isActive              Boolean        @default(true) @map("is_active")
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
@@ -242,9 +239,9 @@ model CatalogueItem {
 }
 
 model Estimate {
-  id                 String         @id @default(uuid()) @db.Uuid
-  projectId          String         @db.Uuid @map("project_id")
-  createdById        String         @db.Uuid @map("created_by_id")
+  id                 Int            @id @default(autoincrement())
+  projectId          Int            @map("project_id")
+  createdById        Int            @map("created_by_id")
   name               String
   reference          String?
   description        String?
@@ -261,8 +258,8 @@ model Estimate {
   createdAt          DateTime       @default(now()) @map("created_at")
   updatedAt          DateTime       @updatedAt @map("updated_at")
 
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  createdBy User    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdBy User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   sections  EstimateSection[]
 
   @@index([projectId, status])
@@ -271,8 +268,8 @@ model Estimate {
 }
 
 model EstimateSection {
-  id          String   @id @default(uuid()) @db.Uuid
-  estimateId  String   @db.Uuid @map("estimate_id")
+  id          Int      @id @default(autoincrement())
+  estimateId  Int      @map("estimate_id")
   name        String
   description String?
   sortOrder   Int      @default(0) @map("sort_order")
@@ -287,12 +284,12 @@ model EstimateSection {
 }
 
 model EstimateItem {
-  id              String   @id @default(uuid()) @db.Uuid
-  sectionId       String   @db.Uuid @map("section_id")
-  catalogueItemId String?  @db.Uuid @map("catalogue_item_id")
-  unitId          String   @db.Uuid @map("unit_id")
+  id              Int  @id @default(autoincrement())
+  sectionId       Int  @map("section_id")
+  catalogueItemId Int? @map("catalogue_item_id")
+  unitId          Int  @map("unit_id")
 
-  // Snapshot fields preserve the estimate when the catalogue changes.
+  // Snapshot fields preserve the estimate when catalogue defaults change.
   itemCode      String? @map("item_code")
   description   String
   specification Json?
@@ -308,9 +305,9 @@ model EstimateItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  section       EstimateSection   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  catalogueItem CatalogueItem?    @relation(fields: [catalogueItemId], references: [id], onDelete: SetNull)
-  unit          Unit              @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  section       EstimateSection    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  catalogueItem CatalogueItem?     @relation(fields: [catalogueItemId], references: [id], onDelete: SetNull)
+  unit          Unit               @relation(fields: [unitId], references: [id], onDelete: Restrict)
   measurements  MeasurementInput[]
 
   @@index([sectionId, sortOrder])
@@ -319,7 +316,7 @@ model EstimateItem {
 }
 
 model FormulaTemplate {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          Int      @id @default(autoincrement())
   code        String   @unique
   name        String
   description String?
@@ -336,12 +333,12 @@ model FormulaTemplate {
 }
 
 model MeasurementInput {
-  id                 String   @id @default(uuid()) @db.Uuid
-  estimateItemId     String   @db.Uuid @map("estimate_item_id")
-  formulaTemplateId  String   @db.Uuid @map("formula_template_id")
+  id                 Int      @id @default(autoincrement())
+  estimateItemId     Int      @map("estimate_item_id")
+  formulaTemplateId  Int      @map("formula_template_id")
   formulaVersion     Int      @map("formula_version")
   inputs             Json
-  calculatedQuantity Decimal  @db.Decimal(18, 4) @map("calculated_quantity")
+  calculatedQuantity Decimal  @map("calculated_quantity") @db.Decimal(18, 4)
   calculationDetails Json?    @map("calculation_details")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")

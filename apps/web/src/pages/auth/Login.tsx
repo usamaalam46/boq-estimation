@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 
 import authService from "../../services/auth.service";
+import { useAuthStore } from "../../store/authStore";
 import BaseInput from "../../components/ui/BaseInput";
 import BaseButton from "../../components/ui/BaseButton";
 
@@ -47,15 +48,34 @@ export default function Login() {
         password,
       });
 
-      if (!response.token) {
-        setError("Login failed. The server did not return an access token.");
+      if (!response.token || !response.user) {
+        setError("Login failed. The server returned incomplete login data.");
         return;
       }
 
+      if (!response.user.isActive) {
+        setError("Your account is inactive.");
+        return;
+      }
+
+      // Save the access token.
       localStorage.setItem("boq_access_token", response.token);
 
+      // Save the authenticated user and update the application state.
+      const { setUser, setAuthenticated } = useAuthStore.getState();
+
+      setUser(response.user);
+      setAuthenticated(true);
+
+      // Navigate after authentication state is updated.
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
+      // Clear any stale authentication data if login fails.
+      localStorage.removeItem("boq_access_token");
+
+      const { clearAuth } = useAuthStore.getState();
+      clearAuth();
+
       if (isAxiosError<{ message?: string }>(err)) {
         const status = err.response?.status;
         const message = err.response?.data?.message;
@@ -87,7 +107,11 @@ export default function Login() {
         aria-label="BOQ Estimation introduction"
       >
         <div className="boq-brand-content">
-          <a className="boq-brand-logo" href="/login" aria-label="BOQ Estimation">
+          <a
+            className="boq-brand-logo"
+            href="/login"
+            aria-label="BOQ Estimation"
+          >
             <span className="boq-brand-logo-icon" aria-hidden="true">
               <svg
                 width="30"
@@ -195,7 +219,7 @@ export default function Login() {
           </div>
 
           <div className="boq-login-heading">
-            <span className="boq-login-eyebrow">ADMIN PORTAL</span>
+            <span className="boq-login-eyebrow">WORKSPACE PORTAL</span>
             <h2>Welcome back</h2>
             <p>Sign in to access your BOQ estimation workspace.</p>
           </div>
@@ -233,8 +257,12 @@ export default function Login() {
                   variant="ghost"
                   size="sm"
                   className="boq-text-button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() =>
+                    setShowPassword((current) => !current)
+                  }
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
                   disabled={isLoading}
                 >
                   {showPassword ? "Hide" : "Show"}

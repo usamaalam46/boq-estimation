@@ -1,0 +1,11 @@
+.estimates-actions-heading { min-width: 100px; }
+.estimates-actions-cell { white-space: nowrap; }
+.estimates-edit-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 1px solid #20365b; border-radius: 7px; padding: 8px 12px;
+  background: #20365b; color: #fff; font: inherit; font-size: 12px;
+  font-weight: 600; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.estimates-edit-button:hover { background: #172945; border-color: #172945; }
+.estimates-edit-button:focus-visible { outline: 3px solid #9bb7df; outline-offset: 2px; }

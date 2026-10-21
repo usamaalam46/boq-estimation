@@ -127,7 +127,7 @@ function decimal(value: string) {
   return value;
 }
 
-async function ensureOrganizationRole(organizationId: string, seed: typeof organizationRoleSeeds[number]) {
+async function ensureOrganizationRole(organizationId: number, seed: typeof organizationRoleSeeds[number]) {
   const existing = await prisma.role.findFirst({ where: { organizationId, code: seed.code } });
   const role = existing
     ? await prisma.role.update({ where: { id: existing.id }, data: { name: seed.name, description: seed.description, scope: "organization", isSystem: true, isActive: true } })
@@ -145,14 +145,14 @@ async function ensureOrganizationRole(organizationId: string, seed: typeof organ
   return role;
 }
 
-async function ensureCategory(disciplineId: string, name: string, sortOrder: number) {
+async function ensureCategory(disciplineId: number, name: string, sortOrder: number) {
   const existing = await prisma.category.findFirst({ where: { disciplineId, parentId: null, name } });
   if (existing) return existing;
   return prisma.category.create({ data: { disciplineId, name, sortOrder, isActive: true } });
 }
 
 async function ensureCatalogueItem(args: {
-  disciplineId: string; categoryId: string; unitId: string; code: string; name: string; description: string;
+  disciplineId: number; categoryId: number; unitId: number; code: string; name: string; description: string;
 }) {
   const existing = await prisma.catalogueItem.findFirst({
     where: { scope: "platform", organizationId: null, code: args.code },
@@ -164,7 +164,12 @@ async function ensureCatalogueItem(args: {
     });
   }
   return prisma.catalogueItem.create({
-    data: { scope: "platform", organizationId: null, ...args, specification: undefined, defaultWastagePercent: "0" },
+    data: {
+  scope: "platform",
+  organizationId: null,
+  ...args,
+  defaultWastagePercent: "0",
+},
   });
 }
 
@@ -177,7 +182,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(demoPassword, 12);
 
   // Seed globally shared engineering foundations.
-  const disciplineByCode = new Map<string, { id: string }>();
+  const disciplineByCode = new Map<string, { id: number }>();
   for (const seed of disciplineSeeds) {
     const discipline = await prisma.discipline.upsert({
       where: { code: seed.code },
@@ -187,7 +192,7 @@ async function main() {
     disciplineByCode.set(seed.code, discipline);
   }
 
-  const unitBySymbol = new Map<string, { id: string }>();
+  const unitBySymbol = new Map<string, { id: number }>();
   for (const seed of unitSeeds) {
     const unit = await prisma.unit.upsert({
       where: { symbol: seed.symbol },
@@ -197,12 +202,22 @@ async function main() {
     unitBySymbol.set(seed.symbol, unit);
   }
 
-  const categoryIds = new Map<string, string>();
+  const categoryIds = new Map<string, number>();
   for (const [disciplineCode, categoryNames] of Object.entries(categoriesByDiscipline)) {
     const discipline = disciplineByCode.get(disciplineCode);
     if (!discipline) throw new Error(`Missing discipline ${disciplineCode}`);
     for (let i = 0; i < categoryNames.length; i++) {
-      const category = await ensureCategory(discipline.id, categoryNames[i], i + 1);
+     const categoryName = categoryNames[i];
+
+if (categoryName === undefined) {
+  throw new Error(`Category name is missing at index ${i}.`);
+}
+
+const category = await ensureCategory(
+  discipline.id,
+  categoryName,
+  i + 1
+);
       categoryIds.set(`${disciplineCode}:${categoryNames[i]}`, category.id);
     }
   }
@@ -221,7 +236,7 @@ async function main() {
     { disciplineCode: "CIVIL", categoryName: "Aggregates", code: "CIVIL-CRUSH", name: "Crushed aggregate, 19 mm", description: "Quality and grading to be specified by project.", unitSymbol: "m3" },
   ];
 
-  const catalogueByCode = new Map<string, { id: string; unitId: string; unitSymbol: string; name: string }>();
+  const catalogueByCode = new Map<string, { id: number; unitId: number; unitSymbol: string; name: string }>();
   for (const item of catalogueSeeds) {
     const discipline = disciplineByCode.get(item.disciplineCode)!;
     const categoryId = categoryIds.get(`${item.disciplineCode}:${item.categoryName}`);
@@ -252,7 +267,7 @@ async function main() {
     ownerCount++;
 
     // Each organization gets its own role records and permission mappings.
-    const rolesByCode = new Map<string, { id: string }>();
+    const rolesByCode = new Map<string, { id: number }>();
     for (const roleSeed of organizationRoleSeeds) {
       const role = await ensureOrganizationRole(organization.id, roleSeed);
       rolesByCode.set(roleSeed.code, role);
@@ -277,12 +292,12 @@ async function main() {
     const existingEstimate = await prisma.estimate.findFirst({ where: { projectId: project.id, reference: seed.estimateReference } });
     const estimate = existingEstimate
       ? await prisma.estimate.update({
-          where: { id: existingEstimate.id },
-          data: { name: seed.estimateName, description: seed.estimateDescription, createdById: owner.id, currency: "PKR", status: "draft" },
-        })
+        where: { id: existingEstimate.id },
+        data: { name: seed.estimateName, description: seed.estimateDescription, createdById: owner.id, currency: "PKR", status: "draft" },
+      })
       : await prisma.estimate.create({
-          data: { projectId: project.id, createdById: owner.id, name: seed.estimateName, reference: seed.estimateReference, description: seed.estimateDescription, currency: "PKR", status: "draft" },
-        });
+        data: { projectId: project.id, createdById: owner.id, name: seed.estimateName, reference: seed.estimateReference, description: seed.estimateDescription, currency: "PKR", status: "draft" },
+      });
     estimateCount++;
 
     const sectionName = "Bill of Quantities";
@@ -297,6 +312,9 @@ async function main() {
     let wastageTotal = 0;
     for (let i = 0; i < seed.lines.length; i++) {
       const line = seed.lines[i];
+      if (line === undefined) {
+        throw new Error("An estimate line is missing from the seed data.");
+      }
       const catalogue = catalogueByCode.get(line.itemCode);
       if (!catalogue) throw new Error(`Catalogue item ${line.itemCode} is missing.`);
       const quantity = Number(line.quantity);

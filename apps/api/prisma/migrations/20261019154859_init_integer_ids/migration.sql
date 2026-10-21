@@ -1,12 +1,112 @@
 -- CreateEnum
+CREATE TYPE "RoleScope" AS ENUM ('platform', 'organization');
+
+-- CreateEnum
 CREATE TYPE "EstimateStatus" AS ENUM ('draft', 'in_review', 'approved', 'archived');
 
 -- CreateEnum
 CREATE TYPE "CatalogueScope" AS ENUM ('platform', 'organization');
 
 -- CreateTable
+CREATE TABLE "organizations" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "address" TEXT NOT NULL,
+    "location" TEXT NOT NULL,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "organizations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "users" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "password_hash" TEXT NOT NULL,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "organization_members" (
+    "id" SERIAL NOT NULL,
+    "organization_id" INTEGER NOT NULL,
+    "user_id" INTEGER NOT NULL,
+    "role_id" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "organization_members_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "roles" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "description" TEXT,
+    "scope" "RoleScope" NOT NULL,
+    "organization_id" INTEGER,
+    "is_system" BOOLEAN NOT NULL DEFAULT false,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "permissions" (
+    "id" SERIAL NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "scope" "RoleScope" NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "role_permissions" (
+    "role_id" INTEGER NOT NULL,
+    "permission_id" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "role_permissions_pkey" PRIMARY KEY ("role_id","permission_id")
+);
+
+-- CreateTable
+CREATE TABLE "user_platform_roles" (
+    "user_id" INTEGER NOT NULL,
+    "role_id" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_platform_roles_pkey" PRIMARY KEY ("user_id","role_id")
+);
+
+-- CreateTable
+CREATE TABLE "projects" (
+    "id" SERIAL NOT NULL,
+    "organization_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "code" TEXT,
+    "description" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "disciplines" (
-    "id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "description" TEXT,
@@ -19,7 +119,7 @@ CREATE TABLE "disciplines" (
 
 -- CreateTable
 CREATE TABLE "units" (
-    "id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "symbol" TEXT NOT NULL,
     "description" TEXT,
@@ -32,9 +132,9 @@ CREATE TABLE "units" (
 
 -- CreateTable
 CREATE TABLE "categories" (
-    "id" UUID NOT NULL,
-    "discipline_id" UUID NOT NULL,
-    "parent_id" UUID,
+    "id" SERIAL NOT NULL,
+    "discipline_id" INTEGER NOT NULL,
+    "parent_id" INTEGER,
     "name" TEXT NOT NULL,
     "code" TEXT,
     "description" TEXT,
@@ -48,12 +148,12 @@ CREATE TABLE "categories" (
 
 -- CreateTable
 CREATE TABLE "catalogue_items" (
-    "id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
     "scope" "CatalogueScope" NOT NULL DEFAULT 'platform',
-    "organization_id" UUID,
-    "discipline_id" UUID NOT NULL,
-    "category_id" UUID NOT NULL,
-    "unit_id" UUID NOT NULL,
+    "organization_id" INTEGER,
+    "discipline_id" INTEGER NOT NULL,
+    "category_id" INTEGER NOT NULL,
+    "unit_id" INTEGER NOT NULL,
     "code" TEXT,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -68,9 +168,9 @@ CREATE TABLE "catalogue_items" (
 
 -- CreateTable
 CREATE TABLE "estimates" (
-    "id" UUID NOT NULL,
-    "project_id" UUID NOT NULL,
-    "created_by_id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
+    "project_id" INTEGER NOT NULL,
+    "created_by_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "reference" TEXT,
     "description" TEXT,
@@ -92,8 +192,8 @@ CREATE TABLE "estimates" (
 
 -- CreateTable
 CREATE TABLE "estimate_sections" (
-    "id" UUID NOT NULL,
-    "estimate_id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
+    "estimate_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "sort_order" INTEGER NOT NULL DEFAULT 0,
@@ -105,10 +205,10 @@ CREATE TABLE "estimate_sections" (
 
 -- CreateTable
 CREATE TABLE "estimate_items" (
-    "id" UUID NOT NULL,
-    "section_id" UUID NOT NULL,
-    "catalogue_item_id" UUID,
-    "unit_id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
+    "section_id" INTEGER NOT NULL,
+    "catalogue_item_id" INTEGER,
+    "unit_id" INTEGER NOT NULL,
     "item_code" TEXT,
     "description" TEXT NOT NULL,
     "specification" JSONB,
@@ -127,7 +227,7 @@ CREATE TABLE "estimate_items" (
 
 -- CreateTable
 CREATE TABLE "formula_templates" (
-    "id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -143,9 +243,9 @@ CREATE TABLE "formula_templates" (
 
 -- CreateTable
 CREATE TABLE "measurement_inputs" (
-    "id" UUID NOT NULL,
-    "estimate_item_id" UUID NOT NULL,
-    "formula_template_id" UUID NOT NULL,
+    "id" SERIAL NOT NULL,
+    "estimate_item_id" INTEGER NOT NULL,
+    "formula_template_id" INTEGER NOT NULL,
     "formula_version" INTEGER NOT NULL,
     "inputs" JSONB NOT NULL,
     "calculated_quantity" DECIMAL(18,4) NOT NULL,
@@ -155,6 +255,48 @@ CREATE TABLE "measurement_inputs" (
 
     CONSTRAINT "measurement_inputs_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "organizations_slug_key" ON "organizations"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+
+-- CreateIndex
+CREATE INDEX "organization_members_user_id_idx" ON "organization_members"("user_id");
+
+-- CreateIndex
+CREATE INDEX "organization_members_role_id_idx" ON "organization_members"("role_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "organization_members_organization_id_user_id_key" ON "organization_members"("organization_id", "user_id");
+
+-- CreateIndex
+CREATE INDEX "roles_scope_idx" ON "roles"("scope");
+
+-- CreateIndex
+CREATE INDEX "roles_organization_id_idx" ON "roles"("organization_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "roles_organization_id_code_key" ON "roles"("organization_id", "code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "permissions_code_key" ON "permissions"("code");
+
+-- CreateIndex
+CREATE INDEX "permissions_scope_idx" ON "permissions"("scope");
+
+-- CreateIndex
+CREATE INDEX "role_permissions_permission_id_idx" ON "role_permissions"("permission_id");
+
+-- CreateIndex
+CREATE INDEX "user_platform_roles_role_id_idx" ON "user_platform_roles"("role_id");
+
+-- CreateIndex
+CREATE INDEX "projects_organization_id_idx" ON "projects"("organization_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "projects_organization_id_code_key" ON "projects"("organization_id", "code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "disciplines_name_key" ON "disciplines"("name");
@@ -206,6 +348,33 @@ CREATE INDEX "measurement_inputs_estimate_item_id_idx" ON "measurement_inputs"("
 
 -- CreateIndex
 CREATE INDEX "measurement_inputs_formula_template_id_idx" ON "measurement_inputs"("formula_template_id");
+
+-- AddForeignKey
+ALTER TABLE "organization_members" ADD CONSTRAINT "organization_members_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "organization_members" ADD CONSTRAINT "organization_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "organization_members" ADD CONSTRAINT "organization_members_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "roles" ADD CONSTRAINT "roles_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_platform_roles" ADD CONSTRAINT "user_platform_roles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_platform_roles" ADD CONSTRAINT "user_platform_roles_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "projects" ADD CONSTRAINT "projects_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "categories" ADD CONSTRAINT "categories_discipline_id_fkey" FOREIGN KEY ("discipline_id") REFERENCES "disciplines"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

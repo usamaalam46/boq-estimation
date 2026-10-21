@@ -1,0 +1,807 @@
+
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../../api/axios";
+import "./EstimateBuilder.css";
+import "./Addons.css"
+type BoqItem = {
+  id: string;
+  catalogueItemId?: number | null;
+  unitId?: number | null;
+  specification?: unknown;
+  code: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  rate: number;
+  wastagePercent: number;
+};
+
+type BoqSection = {
+  id: string;
+  name: string;
+  items: BoqItem[];
+};
+
+type CatalogueItem = {
+  id: number;
+  code: string | null;
+  name: string;
+  description: string | null;
+  specification: unknown;
+  defaultWastagePercent: number | string | null;
+  unitId: number;
+  unit: { id: number; name: string; symbol: string };
+  category: { id: number; name: string; discipline?: { name: string } };
+};
+
+type Project = {
+  id: number;
+  name: string;
+  code?: string | null;
+};
+
+const newItem = (): BoqItem => ({
+  id: crypto.randomUUID(),
+  code: "",
+  description: "",
+  unit: "pcs",
+  quantity: 1,
+  rate: 0,
+  wastagePercent: 0,
+});
+
+const newSection = (name = "New section"): BoqSection => ({
+  id: crypto.randomUUID(),
+  name,
+  items: [newItem()],
+});
+
+const money = (value: number, currency: string) =>
+  new Intl.NumberFormat("en-PK", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value);
+
+export default function EstimateBuilder() {
+  const navigate = useNavigate();
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [name, setName] = useState("");
+  const [reference, setReference] = useState("");
+  const [description, setDescription] = useState("");
+  const [currency, setCurrency] = useState("PKR");
+  const [contingencyPercent, setContingencyPercent] = useState(0);
+  const [taxPercent, setTaxPercent] = useState(0);
+  const [sections, setSections] = useState<BoqSection[]>([
+    newSection("General works"),
+  ]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [catalogueSearch, setCatalogueSearch] = useState("");
+  const [catalogueItems, setCatalogueItems] = useState<CatalogueItem[]>([]);
+  const [selectedCatalogueIds, setSelectedCatalogueIds] = useState<number[]>([]);
+  const [loadingCatalogue, setLoadingCatalogue] = useState(false);
+  const [catalogueError, setCatalogueError] = useState("");
+  const [targetSectionId, setTargetSectionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProjects() {
+      try {
+        setLoadingProjects(true);
+        const response = await api.get("/projects", { params: { page: 1, pageSize: 100 } });
+        const result = response.data;
+        const list = Array.isArray(result) ? result
+          : Array.isArray(result?.data?.items) ? result.data.items
+          : Array.isArray(result?.data) ? result.data
+          : Array.isArray(result?.items) ? result.items
+          : null;
+        if (!list) throw new Error("Unexpected projects response.");
+        if (!cancelled) setProjects(list);
+      } catch {
+        if (!cancelled) {
+          setProjects([]);
+          setError("Unable to load projects. Please check your projects API and access permissions.");
+        }
+      } finally {
+        if (!cancelled) setLoadingProjects(false);
+      }
+    }
+    void loadProjects();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!catalogueOpen) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        setLoadingCatalogue(true);
+        setCatalogueError("");
+        const response = await api.get("/catalogue", {
+          params: { page: 1, limit: 100, search: catalogueSearch.trim() },
+        });
+        const result = response.data;
+        const raw = Array.isArray(result?.data) ? result.data
+          : Array.isArray(result?.data?.items) ? result.data.items
+          : Array.isArray(result?.items) ? result.items
+          : Array.isArray(result) ? result : null;
+        if (!raw) throw new Error("Unexpected catalogue response format.");
+        if (!cancelled) setCatalogueItems(raw);
+      } catch (err: unknown) {
+        const message = typeof err === "object" && err !== null && "response" in err
+          ? String((err as { response?: { data?: { message?: string } } }).response?.data?.message || "")
+          : "";
+        if (!cancelled) {
+          setCatalogueItems([]);
+          setCatalogueError(message || "Unable to load catalogue items. Check the catalogue API and your access.");
+        }
+      } finally {
+        if (!cancelled) setLoadingCatalogue(false);
+      }
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [catalogueOpen, catalogueSearch]);
+
+  function openCatalogue(sectionId: string) {
+    setTargetSectionId(sectionId);
+    setSelectedCatalogueIds([]);
+    setCatalogueSearch("");
+    setCatalogueOpen(true);
+  }
+
+  function addSelectedCatalogueItems() {
+    const selected = catalogueItems.filter((item) => selectedCatalogueIds.includes(item.id));
+    if (!selected.length || !targetSectionId) return;
+    setSections((current) => current.map((section) => {
+      if (section.id !== targetSectionId) return section;
+      const additions: BoqItem[] = selected.map((item) => ({
+        id: crypto.randomUUID(),
+        catalogueItemId: item.id,
+        unitId: item.unitId ?? item.unit?.id,
+        specification: item.specification,
+        code: item.code ?? "",
+        description: item.description?.trim() || item.name,
+        unit: item.unit?.symbol || "pcs",
+        quantity: 1,
+        rate: 0,
+        wastagePercent: Number(item.defaultWastagePercent ?? 0),
+      }));
+      return { ...section, items: [...section.items, ...additions] };
+    }));
+    setCatalogueOpen(false);
+  }
+
+  const totals = useMemo(() => {
+    let subtotal = 0;
+    let wastageTotal = 0;
+
+    for (const section of sections) {
+      for (const item of section.items) {
+        const base = Math.max(0, item.quantity) * Math.max(0, item.rate);
+        subtotal += base;
+        wastageTotal += base * Math.max(0, item.wastagePercent) / 100;
+      }
+    }
+
+    const beforeContingency = subtotal + wastageTotal;
+    const contingencyAmount =
+      beforeContingency * Math.max(0, contingencyPercent) / 100;
+    const taxAmount =
+      (beforeContingency + contingencyAmount) *
+      Math.max(0, taxPercent) / 100;
+
+    return {
+      subtotal,
+      wastageTotal,
+      contingencyAmount,
+      taxAmount,
+      grandTotal: beforeContingency + contingencyAmount + taxAmount,
+    };
+  }, [sections, contingencyPercent, taxPercent]);
+
+  function updateSection(
+    sectionId: string,
+    updates: Partial<BoqSection>,
+  ) {
+    setSections((current) =>
+      current.map((section) =>
+        section.id === sectionId ? { ...section, ...updates } : section,
+      ),
+    );
+  }
+
+  function updateItem(
+    sectionId: string,
+    itemId: string,
+    updates: Partial<BoqItem>,
+  ) {
+    setSections((current) =>
+      current.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              items: section.items.map((item) =>
+                item.id === itemId ? { ...item, ...updates } : item,
+              ),
+            }
+          : section,
+      ),
+    );
+  }
+
+  function addItem(sectionId: string) {
+    setSections((current) =>
+      current.map((section) =>
+        section.id === sectionId
+          ? { ...section, items: [...section.items, newItem()] }
+          : section,
+      ),
+    );
+  }
+
+  function duplicateItem(sectionId: string, itemId: string) {
+    setSections((current) => current.map((section) => {
+      if (section.id !== sectionId) return section;
+      const source = section.items.find((item) => item.id === itemId);
+      if (!source) return section;
+      const copy = { ...source, id: crypto.randomUUID() };
+      const index = section.items.findIndex((item) => item.id === itemId);
+      const items = [...section.items];
+      items.splice(index + 1, 0, copy);
+      return { ...section, items };
+    }));
+  }
+
+  function duplicateSection(sectionId: string) {
+    setSections((current) => {
+      const source = current.find((section) => section.id === sectionId);
+      if (!source) return current;
+      const copy = { ...source, id: crypto.randomUUID(), name: `${source.name} (Copy)`, items: source.items.map((item) => ({ ...item, id: crypto.randomUUID() })) };
+      const index = current.findIndex((section) => section.id === sectionId);
+      const next = [...current];
+      next.splice(index + 1, 0, copy);
+      return next;
+    });
+  }
+
+  function removeItem(sectionId: string, itemId: string) {
+    setSections((current) =>
+      current.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              items: section.items.filter((item) => item.id !== itemId),
+            }
+          : section,
+      ),
+    );
+  }
+
+  function removeSection(sectionId: string) {
+    setSections((current) =>
+      current.filter((section) => section.id !== sectionId),
+    );
+  }
+
+  async function saveDraft() {
+    setError("");
+    setSuccess("");
+
+    if (!projectId) {
+      setError("Please select a project.");
+      return;
+    }
+
+    if (!name.trim()) {
+      setError("Please enter an estimate name.");
+      return;
+    }
+
+    const hasEmptyDescription = sections.some((section) =>
+      section.items.some((item) => !item.description.trim()),
+    );
+
+    if (hasEmptyDescription) {
+      setError("Please enter a description for every BOQ item.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const payload = {
+        projectId: Number(projectId),
+        name: name.trim(),
+        reference: reference.trim() || null,
+        description: description.trim() || null,
+        currency,
+        status: "draft",
+        contingencyPercent,
+        taxPercent,
+        ...totals,
+        sections: sections.map((section, sectionIndex) => ({
+          name: section.name.trim() || `Section ${sectionIndex + 1}`,
+          sortOrder: sectionIndex,
+          items: section.items.map((item, itemIndex) => ({
+            catalogueItemId: item.catalogueItemId ?? null,
+            unitId: item.unitId,
+            specification: item.specification,
+            itemCode: item.code.trim() || null,
+            description: item.description.trim(),
+            unitSymbol: item.unit.trim() || "pcs",
+            quantity: item.quantity,
+            rate: item.rate,
+            wastagePercent: item.wastagePercent,
+            amount:
+              item.quantity *
+              item.rate *
+              (1 + item.wastagePercent / 100),
+            sortOrder: itemIndex,
+          })),
+        })),
+      };
+
+      // Requires POST /api/estimates to support nested sections and items.
+      await api.post("/estimates", payload);
+
+      setSuccess("Draft saved successfully.");
+    } catch (err: unknown) {
+      const responseMessage =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof err.response === "object" &&
+        err.response !== null &&
+        "data" in err.response &&
+        typeof err.response.data === "object" &&
+        err.response.data !== null &&
+        "message" in err.response.data &&
+        typeof err.response.data.message === "string"
+          ? err.response.data.message
+          : "Unable to save the draft. Confirm that POST /estimates is implemented.";
+
+      setError(responseMessage);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="estimate-builder">
+      <header className="eb-heading">
+        <div>
+          <div className="eb-eyebrow">BILL OF QUANTITIES</div>
+          <h1>Estimate Builder</h1>
+          <p>Build a BOQ with reusable sections, quick item duplication, and automatic cost calculations.</p>
+        </div>
+
+        <div className="eb-heading-actions">
+          <button
+            className="eb-button eb-button-secondary"
+            type="button"
+            onClick={() => navigate("/estimates")}
+          >
+            Cancel
+          </button>
+          <button
+            className="eb-button eb-button-primary"
+            type="button"
+            onClick={() => void saveDraft()}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Draft"}
+          </button>
+        </div>
+      </header>
+
+      {error && <div className="eb-alert eb-alert-error">{error}</div>}
+      {success && <div className="eb-alert eb-alert-success">{success}</div>}
+
+      <section className="eb-panel">
+        <div className="eb-panel-heading">
+          <div>
+            <h2>Estimate information</h2>
+            <p>Enter the project and document details.</p>
+          </div>
+          <span className="eb-draft-badge">Draft</span>
+        </div>
+
+        <div className="eb-form-grid">
+          <label className="eb-field eb-field-wide">
+            Estimate name <span>*</span>
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Mechanical Works — Phase 1"
+            />
+          </label>
+
+          <label className="eb-field">
+            Project <span>*</span>
+            <select
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+              disabled={loadingProjects}
+            >
+              <option value="">
+                {loadingProjects ? "Loading projects..." : "Select a project"}
+              </option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}{project.code ? ` (${project.code})` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="eb-field">
+            Reference
+            <input
+              value={reference}
+              onChange={(event) => setReference(event.target.value)}
+              placeholder="e.g. BOQ-MECH-001"
+            />
+          </label>
+
+          <label className="eb-field">
+            Currency
+            <select
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value)}
+            >
+              <option value="PKR">PKR — Pakistani Rupee</option>
+              <option value="USD">USD — US Dollar</option>
+              <option value="AED">AED — UAE Dirham</option>
+              <option value="SAR">SAR — Saudi Riyal</option>
+            </select>
+          </label>
+
+          <label className="eb-field eb-field-wide">
+            Description
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={2}
+              placeholder="Describe the scope of work..."
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="eb-panel eb-boq-panel">
+        <div className="eb-panel-heading">
+          <div>
+            <h2>Bill of quantities</h2>
+            <p>Add work sections and enter quantities, rates, and wastage.</p>
+          </div>
+          <button
+            className="eb-button eb-button-secondary"
+            type="button"
+            onClick={() =>
+              setSections((current) => [
+                ...current,
+                newSection(`Section ${current.length + 1}`),
+              ])
+            }
+          >
+            + Add section
+          </button>
+        </div>
+
+        {sections.map((section, sectionIndex) => {
+          const sectionTotal = section.items.reduce(
+            (sum, item) =>
+              sum +
+              item.quantity *
+                item.rate *
+                (1 + item.wastagePercent / 100),
+            0,
+          );
+
+          return (
+            <div className="eb-section" key={section.id}>
+              <div className="eb-section-heading">
+                <div className="eb-section-title">
+                  <span className="eb-section-number">
+                    {String(sectionIndex + 1).padStart(2, "0")}
+                  </span>
+                  <input
+                    aria-label="Section name"
+                    value={section.name}
+                    onChange={(event) =>
+                      updateSection(section.id, { name: event.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="eb-section-actions">
+                  <span>{money(sectionTotal, currency)}</span>
+                  <button
+                    type="button"
+                    className="eb-text-button"
+                    onClick={() => duplicateSection(section.id)}
+                  >
+                    Duplicate
+                  </button>
+                  <button
+                    type="button"
+                    className="eb-text-button eb-danger-text"
+                    onClick={() => removeSection(section.id)}
+                  >
+                    Remove section
+                  </button>
+                </div>
+              </div>
+
+              <div className="eb-table-wrap">
+                <table className="eb-table">
+                  <thead>
+                    <tr>
+                      <th>Item code</th>
+                      <th>Description</th>
+                      <th>Unit</th>
+                      <th>Quantity</th>
+                      <th>Rate</th>
+                      <th>Wastage %</th>
+                      <th className="eb-right">Amount</th>
+                      <th aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.items.map((item, itemIndex) => {
+                      const amount =
+                        item.quantity *
+                        item.rate *
+                        (1 + item.wastagePercent / 100);
+
+                      return (
+                        <tr key={item.id}>
+                          <td>
+                            <input
+                              value={item.code}
+                              onChange={(event) =>
+                                updateItem(section.id, item.id, {
+                                  code: event.target.value,
+                                })
+                              }
+                              placeholder="Code"
+                              aria-label={`Item ${itemIndex + 1} code`}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={item.description}
+                              onChange={(event) =>
+                                updateItem(section.id, item.id, {
+                                  description: event.target.value,
+                                })
+                              }
+                              placeholder="Describe work or material"
+                              aria-label={`Item ${itemIndex + 1} description`}
+                              required
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={item.unit}
+                              onChange={(event) =>
+                                updateItem(section.id, item.id, {
+                                  unit: event.target.value,
+                                })
+                              }
+                              aria-label={`Item ${itemIndex + 1} unit`}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.0001"
+                              value={item.quantity}
+                              onChange={(event) =>
+                                updateItem(section.id, item.id, {
+                                  quantity: Math.max(0, Number(event.target.value)),
+                                })
+                              }
+                              aria-label={`Item ${itemIndex + 1} quantity`}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.rate}
+                              onChange={(event) =>
+                                updateItem(section.id, item.id, {
+                                  rate: Math.max(0, Number(event.target.value)),
+                                })
+                              }
+                              aria-label={`Item ${itemIndex + 1} rate`}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={item.wastagePercent}
+                              onChange={(event) =>
+                                updateItem(section.id, item.id, {
+                                  wastagePercent: Math.min(
+                                    100,
+                                    Math.max(0, Number(event.target.value)),
+                                  ),
+                                })
+                              }
+                              aria-label={`Item ${itemIndex + 1} wastage`}
+                            />
+                          </td>
+                          <td className="eb-right eb-amount">
+                            {money(amount, currency)}
+                          </td>
+                          <td>
+                            <div className="eb-row-actions">
+                            <button
+                              type="button"
+                              className="eb-copy-row"
+                              aria-label="Duplicate item"
+                              title="Duplicate item"
+                              onClick={() => duplicateItem(section.id, item.id)}
+                            >
+                              ⧉
+                            </button>
+                            <button
+                              type="button"
+                              className="eb-remove-row"
+                              aria-label="Remove item"
+                              title="Remove item"
+                              onClick={() => removeItem(section.id, item.id)}
+                            >
+                              ×
+                            </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="eb-item-toolbar">
+                <button type="button" className="eb-button eb-button-secondary" onClick={() => openCatalogue(section.id)}>
+                  + Select from Catalogue
+                </button>
+                <button type="button" className="eb-add-row" onClick={() => addItem(section.id)}>
+                  + Add manual item
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {sections.length === 0 && (
+          <div className="eb-empty">
+            <strong>No BOQ sections yet</strong>
+            <p>Add a section to start entering work items.</p>
+          </div>
+        )}
+      </section>
+
+      <div className="eb-bottom-grid">
+        <section className="eb-panel eb-cost-panel">
+          <h2>Additional costs</h2>
+          <p>Set optional percentages for the estimate.</p>
+
+          <label className="eb-field">
+            Contingency (%)
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={contingencyPercent}
+              onChange={(event) =>
+                setContingencyPercent(
+                  Math.min(100, Math.max(0, Number(event.target.value))),
+                )
+              }
+            />
+          </label>
+
+          <label className="eb-field">
+            Tax (%)
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={taxPercent}
+              onChange={(event) =>
+                setTaxPercent(
+                  Math.min(100, Math.max(0, Number(event.target.value))),
+                )
+              }
+            />
+          </label>
+        </section>
+
+        <section className="eb-panel eb-summary-panel">
+          <h2>Cost summary</h2>
+          <div className="eb-summary-row">
+            <span>Subtotal</span>
+            <strong>{money(totals.subtotal, currency)}</strong>
+          </div>
+          <div className="eb-summary-row">
+            <span>Wastage</span>
+            <strong>{money(totals.wastageTotal, currency)}</strong>
+          </div>
+          <div className="eb-summary-row">
+            <span>Contingency ({contingencyPercent}%)</span>
+            <strong>{money(totals.contingencyAmount, currency)}</strong>
+          </div>
+          <div className="eb-summary-row">
+            <span>Tax ({taxPercent}%)</span>
+            <strong>{money(totals.taxAmount, currency)}</strong>
+          </div>
+          <div className="eb-summary-total">
+            <span>Grand total</span>
+            <strong>{money(totals.grandTotal, currency)}</strong>
+          </div>
+        </section>
+      </div>
+
+      {catalogueOpen && (
+        <div className="eb-catalogue-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCatalogueOpen(false);
+        }}>
+          <section className="eb-catalogue-dialog" role="dialog" aria-modal="true" aria-labelledby="eb-catalogue-title">
+            <div className="eb-catalogue-dialog-header">
+              <div><h2 id="eb-catalogue-title">Select catalogue items</h2><p>Choose existing items to autofill your BOQ rows.</p></div>
+              <button type="button" className="eb-text-button" onClick={() => setCatalogueOpen(false)}>Close ×</button>
+            </div>
+            <input className="eb-catalogue-search" value={catalogueSearch} onChange={(event) => setCatalogueSearch(event.target.value)} placeholder="Search by item name or code..." autoFocus />
+            {catalogueError && <div className="eb-alert eb-alert-error">{catalogueError}</div>}
+            {loadingCatalogue ? <p className="eb-catalogue-status">Loading catalogue...</p> : catalogueItems.length === 0 ? <p className="eb-catalogue-status">No catalogue items found. Add active items to the catalogue first.</p> : (
+              <div className="eb-catalogue-results"><table className="eb-table"><thead><tr><th></th><th>Code</th><th>Item</th><th>Category</th><th>Unit</th><th>Wastage</th></tr></thead><tbody>
+                {catalogueItems.map((item) => <tr key={item.id}>
+                  <td><input type="checkbox" aria-label={`Select ${item.name}`} checked={selectedCatalogueIds.includes(item.id)} onChange={(event) => setSelectedCatalogueIds((ids) => event.target.checked ? [...ids, item.id] : ids.filter((id) => id !== item.id))} /></td>
+                  <td>{item.code || "—"}</td><td><strong>{item.name}</strong>{item.description && <small className="eb-catalogue-description">{item.description}</small>}</td><td>{item.category?.name || "—"}</td><td>{item.unit?.symbol || "—"}</td><td>{Number(item.defaultWastagePercent ?? 0)}%</td>
+                </tr>)}
+              </tbody></table></div>
+            )}
+            <div className="eb-catalogue-dialog-footer"><span>{selectedCatalogueIds.length} item(s) selected</span><div><button type="button" className="eb-button eb-button-secondary" onClick={() => setCatalogueOpen(false)}>Cancel</button><button type="button" className="eb-button eb-button-primary" disabled={!selectedCatalogueIds.length} onClick={addSelectedCatalogueItems}>Add selected items</button></div></div>
+          </section>
+        </div>
+      )}
+
+      <footer className="eb-footer">
+        <span>Changes are not saved until you save the draft.</span>
+        <div className="eb-heading-actions">
+          <button
+            type="button"
+            className="eb-button eb-button-secondary"
+            onClick={() => navigate("/estimates")}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="eb-button eb-button-primary"
+            onClick={() => void saveDraft()}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Draft"}
+          </button>
+        </div>
+      </footer>
+    </div>
+  );
+}

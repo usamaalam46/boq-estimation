@@ -1,0 +1,21 @@
+/* Import after EstimateBuilder.css or append these rules to it. */
+.eb-row-actions { display: flex; align-items: center; gap: 5px; }
+.eb-copy-row { width: 28px; height: 28px; border: 1px solid #d8e0ea; border-radius: 6px; background: #fff; color: #20365b; cursor: pointer; font-size: 16px; }
+.eb-copy-row:hover { background: #e9eef5; }
+.eb-section-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.eb-item-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 20px 16px; }
+.eb-catalogue-backdrop { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(15,23,42,.52); }
+.eb-catalogue-dialog { display:flex; flex-direction:column; gap:16px; width:min(1000px,96vw); max-height:88vh; padding:22px; border:1px solid var(--border-color,#dbe3ee); border-radius:14px; background:var(--surface,#fff); box-shadow:0 24px 70px rgba(15,23,42,.25); }
+.eb-catalogue-dialog-header,.eb-catalogue-dialog-footer { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.eb-catalogue-dialog-header h2 { margin:0 0 5px; font-size:19px; }
+.eb-catalogue-dialog-header p { margin:0; color:#64748b; font-size:13px; }
+.eb-catalogue-search { width:100%; min-height:42px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; outline-color:#668cff; }
+.eb-catalogue-results { overflow:auto; min-height:100px; border:1px solid #e2e8f0; border-radius:8px; }
+.eb-catalogue-results .eb-table { width:100%; min-width:660px; }
+.eb-catalogue-results .eb-table td:first-child,.eb-catalogue-results .eb-table th:first-child { width:38px; text-align:center; }
+.eb-catalogue-description { display:block; max-width:320px; margin-top:3px; color:#64748b; white-space:normal; }
+.eb-catalogue-status { padding:20px; color:#64748b; text-align:center; }
+.eb-catalogue-dialog-footer { padding-top:4px; color:#64748b; font-size:13px; }
+.eb-catalogue-dialog-footer > div { display:flex; gap:8px; }
+@media (max-width:640px) { .eb-catalogue-backdrop { padding:8px; } .eb-catalogue-dialog { padding:14px; max-height:94vh; } .eb-catalogue-dialog-footer { align-items:flex-start; flex-direction:column; } }

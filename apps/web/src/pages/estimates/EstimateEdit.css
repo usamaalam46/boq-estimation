@@ -1,0 +1,79 @@
+/* Dedicated styling for the edit page; the shared BOQ controls retain their existing styles. */
+.estimate-edit-page {
+  gap: 18px;
+  color: #172033;
+}
+.estimate-edit-page .eb-heading {
+  padding: 22px 24px;
+  border: 1px solid #e1e8f0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f8fc 100%);
+  align-items: center;
+}
+.estimate-edit-page .eb-eyebrow {
+  color: #20365b;
+  letter-spacing: 1.5px;
+}
+.estimate-edit-page .eb-heading h1 {
+  color: #20365b;
+  font-size: 27px;
+}
+.estimate-edit-page .eb-heading p {
+  max-width: 650px;
+  line-height: 1.6;
+}
+.estimate-edit-page .eb-panel {
+  border-color: #e1e7ef;
+  border-radius: 13px;
+  box-shadow: 0 5px 18px rgb(32 54 91 / 4%);
+}
+.estimate-edit-page .eb-panel-heading h2,
+.estimate-edit-page .eb-cost-panel h2,
+.estimate-edit-page .eb-summary-panel h2 {
+  color: #20365b;
+}
+.estimate-edit-page .eb-button-primary {
+  background: #20365b;
+}
+.estimate-edit-page .eb-button-primary:hover:not(:disabled) {
+  background: #172945;
+}
+.estimate-edit-page .eb-draft-badge {
+  background: #e9eef5;
+  color: #20365b;
+}
+.estimate-edit-page .eb-section-heading {
+  background: #f4f7fb;
+}
+.estimate-edit-page .eb-section-number {
+  background: #e9eef5;
+  color: #20365b;
+}
+.estimate-edit-page .eb-summary-total {
+  border-color: #d8e1ed;
+  color: #20365b;
+}
+.estimate-edit-page .eb-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 14px 18px;
+  border: 1px solid #e1e7ef;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 -5px 18px rgb(15 23 42 / 5%);
+  backdrop-filter: blur(8px);
+}
+.estimate-edit-page .eb-footer > span {
+  color: #64748b;
+  font-size: 12px;
+}
+@media (max-width: 640px) {
+  .estimate-edit-page .eb-heading { padding: 17px; }
+  .estimate-edit-page .eb-footer { position: static; flex-direction: column; align-items: stretch; }
+}
+
+
+.eb-status-in_review { background: #fff2d7; color: #855d00; }
+.eb-status-approved { background: #e1f5e9; color: #17663a; }
+.eb-status-archived { background: #e9edf3; color: #475569; }
